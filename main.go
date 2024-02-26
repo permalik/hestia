@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/google/go-github/v59/github"
+	"github.com/permalik/github_integration/repo"
 	"log"
 	"os"
 
@@ -28,8 +30,15 @@ func main() {
 	rc := redis.NewClient(opts)
 
 	// compare titles: redis against gh
-	k := rc.Keys(ctx, "*")
-	log.Println(k)
+	redisTitles := rc.Keys(ctx, "*")
+	log.Println(redisTitles)
+
+	log.Printf("Launch Sequence:: go-github\n")
+	ghPat := os.Getenv("GITHUB_PAT")
+	gc := github.NewClient(nil).WithAuthToken(ghPat)
+
+	var r repo.Repo
+	repo.Service.GithubAllRepos(r, gc, ctx)
 
 	// d := map[string]interface{}{"asdf": "asdfsadf"}
 	// r := repo.Repo{
