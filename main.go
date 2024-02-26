@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"github.com/google/go-github/v59/github"
+	"github.com/permalik/github_integration/lg"
 	"github.com/permalik/github_integration/repo"
-	"log"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -15,30 +15,54 @@ var ctx = context.Background()
 
 func main() {
 
-	log.Printf("Launch Sequence:: godotenv\n")
+	lg.Launch("godotenv", nil)
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Failure:: .env load\n", err)
+		lg.Fail(".env load", err)
 	}
 
-	log.Printf("Launch Sequence:: redis\n")
+	lg.Launch("redis", nil)
 	connStr := os.Getenv("REDIS_CONNSTR")
 	opts, err := redis.ParseURL(connStr)
 	if err != nil {
-		log.Fatal("Failure:: redis connection\n", err)
+		lg.Fail("redis connection", err)
 	}
 	rc := redis.NewClient(opts)
 
-	// compare titles: redis against gh
-	redisTitles := rc.Keys(ctx, "*")
-	log.Println(redisTitles)
-
-	log.Printf("Launch Sequence:: go-github\n")
+	lg.Launch("go-github", nil)
 	ghPat := os.Getenv("GITHUB_PAT")
 	gc := github.NewClient(nil).WithAuthToken(ghPat)
 
+	allRedis := rc.Keys(ctx, "*")
+	lg.Info("all redis", allRedis)
+
 	var r repo.Repo
-	repo.Service.GithubAllRepos(r, gc, ctx)
+	cfg := repo.Github{
+		Name:   "permalik",
+		Org:    false,
+		Client: gc,
+		Ctx:    ctx,
+	}
+	allPermalik := repo.Service.GithubAll(r, cfg)
+	lg.Info("all permalik", allPermalik)
+
+	cfg = repo.Github{
+		Name:   "systemysterio",
+		Org:    true,
+		Client: gc,
+		Ctx:    ctx,
+	}
+	allSystemysterio := repo.Service.GithubAll(r, cfg)
+	lg.Info("all systemysterio", allSystemysterio)
+
+	cfg = repo.Github{
+		Name:   "azizadevelopment",
+		Org:    true,
+		Client: gc,
+		Ctx:    ctx,
+	}
+	allAziza := repo.Service.GithubAll(r, cfg)
+	lg.Info("all aziza", allAziza)
 
 	// d := map[string]interface{}{"asdf": "asdfsadf"}
 	// r := repo.Repo{

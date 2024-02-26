@@ -5,13 +5,19 @@ import (
 	"github.com/google/go-github/v59/github"
 	"github.com/permalik/github_integration/lg"
 	"github.com/redis/go-redis/v9"
-	"log"
 	"time"
 )
 
 type Service interface {
-	GithubAllRepos(gc *github.Client, ctx context.Context) []Repo
+	GithubAll(cfg Github) []Repo
 	RedisSet(rc *redis.Client, ctx context.Context)
+}
+
+type Github struct {
+	Name   string
+	Org    bool
+	Client *github.Client
+	Ctx    context.Context
 }
 
 type Data struct {
@@ -29,25 +35,9 @@ type Repo struct {
 	Data     Data
 }
 
-func (r Repo) GithubAllRepos(gc *github.Client, ctx context.Context) []Repo {
+func parseGithub(r Repo, arr []Repo, data []*github.Repository) []Repo {
 
-	listOpt := github.ListOptions{
-		Page:    1,
-		PerPage: 100,
-	}
-
-	opt := &github.RepositoryListByUserOptions{Type: "public", Sort: "created", ListOptions: listOpt}
-	data, _, err := gc.Repositories.ListByUser(ctx, "permalik", opt)
-	if err != nil {
-		lg.Fail("github: ListByUser", err)
-	}
-
-	var rArr []Repo
-
-	for i, v := range data {
-		lg.Info("data: index", i)
-		lg.Info("data: value", v.FullName)
-
+	for _, v := range data {
 		caTimeStamp := v.GetCreatedAt()
 		caPtr := caTimeStamp.GetTime()
 		createdAt := *caPtr
@@ -67,11 +57,46 @@ func (r Repo) GithubAllRepos(gc *github.Client, ctx context.Context) []Repo {
 		r.FullName = v.GetFullName()
 		r.Data = d
 
-		rArr = append(rArr, r)
+		arr = append(arr, r)
 	}
-	log.Println(len(rArr))
-	log.Println(rArr)
-	return rArr
+	return arr
+}
+
+func (r Repo) GithubAll(cfg Github) []Repo {
+
+	var arr []Repo
+	listOpt := github.ListOptions{Page: 1, PerPage: 25}
+	if cfg.Org == true {
+
+		opt := &github.RepositoryListByOrgOptions{Type: "public", Sort: "created", ListOptions: listOpt}
+		data, _, err := cfg.Client.Repositories.ListByOrg(cfg.Ctx, cfg.Name, opt)
+		if err != nil {
+			lg.Fail("github: ListByOrg", err)
+		}
+
+		if len(data) <= 0 {
+			lg.Info("github: no data returned from GithubAll", cfg.Name)
+			return arr
+		}
+
+		arr = parseGithub(r, arr, data)
+		return arr
+	} else {
+
+		opt := &github.RepositoryListByUserOptions{Type: "public", Sort: "created", ListOptions: listOpt}
+		data, _, err := cfg.Client.Repositories.ListByUser(cfg.Ctx, cfg.Name, opt)
+		if err != nil {
+			lg.Fail("github: ListByUser", err)
+		}
+
+		if len(data) <= 0 {
+			lg.Info("github: no data returned from GithubAll", cfg.Name)
+			return arr
+		}
+
+		arr = parseGithub(r, arr, data)
+		return arr
+	}
 }
 
 func (r Repo) RedisSet(rc *redis.Client, ctx context.Context) {
