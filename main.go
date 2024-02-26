@@ -33,36 +33,40 @@ func main() {
 	ghPat := os.Getenv("GITHUB_PAT")
 	gc := github.NewClient(nil).WithAuthToken(ghPat)
 
-	allRedis := rc.Keys(ctx, "*")
-	lg.Info("all redis", allRedis)
-
 	var r repo.Repo
-	cfg := repo.Github{
+	gCfg := repo.Github{
 		Name:   "permalik",
 		Org:    false,
 		Client: gc,
 		Ctx:    ctx,
 	}
-	allPermalik := repo.Service.GithubAll(r, cfg)
+	allPermalik := repo.Service.GithubAll(r, gCfg)
 	lg.Info("all permalik", allPermalik)
 
-	cfg = repo.Github{
+	gCfg = repo.Github{
 		Name:   "systemysterio",
 		Org:    true,
 		Client: gc,
 		Ctx:    ctx,
 	}
-	allSystemysterio := repo.Service.GithubAll(r, cfg)
+	allSystemysterio := repo.Service.GithubAll(r, gCfg)
 	lg.Info("all systemysterio", allSystemysterio)
 
-	cfg = repo.Github{
+	gCfg = repo.Github{
 		Name:   "azizadevelopment",
 		Org:    true,
 		Client: gc,
 		Ctx:    ctx,
 	}
-	allAziza := repo.Service.GithubAll(r, cfg)
+	allAziza := repo.Service.GithubAll(r, gCfg)
 	lg.Info("all aziza", allAziza)
+
+	rCfg := repo.Redis{
+		Client: rc,
+		Ctx:    ctx,
+	}
+	allRedis := repo.Service.RedisAll(r, rCfg)
+	lg.Info("all redis", allRedis)
 
 	// d := map[string]interface{}{"asdf": "asdfsadf"}
 	// r := repo.Repo{
