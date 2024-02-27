@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/google/go-github/v59/github"
 	"github.com/permalik/github_integration/lg"
 	"github.com/permalik/github_integration/repo"
 	"os"
@@ -28,45 +27,48 @@ func main() {
 		lg.Fail("redis connection", err)
 	}
 	rc := redis.NewClient(opts)
-
-	lg.Launch("go-github", nil)
-	ghPat := os.Getenv("GITHUB_PAT")
-	gc := github.NewClient(nil).WithAuthToken(ghPat)
+	defer rc.Close()
+	// lg.Launch("go-github", nil)
+	// ghPat := os.Getenv("GITHUB_PAT")
+	// gc := github.NewClient(nil).WithAuthToken(ghPat)
 
 	var r repo.Repo
-	gCfg := repo.Github{
-		Name:   "permalik",
-		Org:    false,
-		Client: gc,
-		Ctx:    ctx,
-	}
-	allPermalik := repo.Service.GithubAll(r, gCfg)
-	lg.Info("all permalik", allPermalik)
+	// gCfg := repo.Github{
+	// 	Name:   "permalik",
+	// 	Org:    false,
+	// 	Client: gc,
+	// 	Ctx:    ctx,
+	// }
+	// allPermalik := repo.Service.GithubAll(r, gCfg)
+	// lg.Info("all permalik", allPermalik)
 
-	gCfg = repo.Github{
-		Name:   "systemysterio",
-		Org:    true,
-		Client: gc,
-		Ctx:    ctx,
-	}
-	allSystemysterio := repo.Service.GithubAll(r, gCfg)
-	lg.Info("all systemysterio", allSystemysterio)
+	// gCfg = repo.Github{
+	// 	Name:   "systemysterio",
+	// 	Org:    true,
+	// 	Client: gc,
+	// 	Ctx:    ctx,
+	// }
+	// allSystemysterio := repo.Service.GithubAll(r, gCfg)
+	// lg.Info("all systemysterio", allSystemysterio)
 
-	gCfg = repo.Github{
-		Name:   "azizadevelopment",
-		Org:    true,
-		Client: gc,
-		Ctx:    ctx,
-	}
-	allAziza := repo.Service.GithubAll(r, gCfg)
-	lg.Info("all aziza", allAziza)
+	// gCfg = repo.Github{
+	// 	Name:   "azizadevelopment",
+	// 	Org:    true,
+	// 	Client: gc,
+	// 	Ctx:    ctx,
+	// }
+	// allAziza := repo.Service.GithubAll(r, gCfg)
+	// lg.Info("all aziza", allAziza)
 
 	rCfg := repo.Redis{
 		Client: rc,
 		Ctx:    ctx,
 	}
-	allRedis := repo.Service.RedisAll(r, rCfg)
-	lg.Info("all redis", allRedis)
+	// allRedis := repo.Service.RedisAll(r, rCfg)
+	// lg.Info("all redis", allRedis)
+	name := "utility"
+	oneRedis := repo.Service.RedisByName(r, name, ctx, rCfg)
+	lg.Info("one redis", oneRedis)
 
 	// d := map[string]interface{}{"asdf": "asdfsadf"}
 	// r := repo.Repo{

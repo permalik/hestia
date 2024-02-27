@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"github.com/google/go-github/v59/github"
 	"github.com/permalik/github_integration/lg"
 	"github.com/redis/go-redis/v9"
@@ -12,6 +13,7 @@ import (
 type Service interface {
 	GithubAll(cfg Github) []Repo
 	RedisAll(cfg Redis) []Repo
+	RedisByName(name string, ctx context.Context, cfg Redis) Repo
 	RedisSet(cfg Redis)
 }
 
@@ -71,8 +73,11 @@ func parseGithub(r Repo, arr []Repo, raw []*github.Repository) []Repo {
 
 func (r Repo) GithubAll(cfg Github) []Repo {
 
+	// check if there are results/errors explicitly
+	// returned from these ghapi calls
 	var arr []Repo
 	listOpt := github.ListOptions{Page: 1, PerPage: 25}
+	log.Println(cfg.Name)
 	if cfg.Org == true {
 
 		opt := &github.RepositoryListByOrgOptions{Type: "public", Sort: "created", ListOptions: listOpt}
@@ -109,9 +114,27 @@ func (r Repo) GithubAll(cfg Github) []Repo {
 func (r Repo) RedisAll(cfg Redis) []Repo {
 
 	var arr []Repo
-	raw := cfg.Client.Keys(cfg.Ctx, "*")
+	raw, err := cfg.Client.Keys(cfg.Ctx, "*").Result()
+	if errors.Is(err, redis.Nil) {
+		lg.Info("redisClient.Keys: key does not exist", err)
+	} else if err != nil {
+		lg.Warn("redisClient.Keys: RedisAll", err)
+	}
 	log.Println(raw)
 	return arr
+}
+
+func (r Repo) RedisByName(name string, ctx context.Context, cfg Redis) Repo {
+
+	res, err := cfg.Client.Get(ctx, name).Result()
+	if errors.Is(err, redis.Nil) {
+		lg.Info("redisClient.Get: name does not exist", err)
+	}
+	if err != nil {
+		lg.Warn("redisClient.Get: RedisByName", "utility")
+	}
+	lg.Info("redisClient.Get: RedisByName", res)
+	return r
 }
 
 func (r Repo) RedisSet(cfg Redis) {
