@@ -2,90 +2,80 @@ package main
 
 import (
 	"context"
+	"github.com/google/go-github/v59/github"
+	"github.com/joho/godotenv"
 	"github.com/permalik/github_integration/lg"
 	"github.com/permalik/github_integration/repo"
-	"os"
-
-	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
+	"os"
 )
 
 var ctx = context.Background()
 
 func main() {
 
+	// make it so it also updates the repos per field
+	// mvp should just be to make sure they get add/delete
+	// how to pass errors upstream
 	lg.Launch("godotenv", nil)
 	err := godotenv.Load()
 	if err != nil {
-		lg.Fail(".env load", err)
+		lg.Fail(".env load", "kill", err)
 	}
+
+	lg.Launch("go-github", nil)
+	ghPat := os.Getenv("GITHUB_PAT")
+	gc := github.NewClient(nil).WithAuthToken(ghPat)
 
 	lg.Launch("redis", nil)
 	connStr := os.Getenv("REDIS_CONNSTR")
 	opts, err := redis.ParseURL(connStr)
 	if err != nil {
-		lg.Fail("redis connection", err)
+		lg.Fail("redis connection", "kill", err)
 	}
 	rc := redis.NewClient(opts)
-	defer rc.Close()
-	// lg.Launch("go-github", nil)
-	// ghPat := os.Getenv("GITHUB_PAT")
-	// gc := github.NewClient(nil).WithAuthToken(ghPat)
 
-	var r repo.Repo
-	// gCfg := repo.Github{
-	// 	Name:   "permalik",
-	// 	Org:    false,
-	// 	Client: gc,
-	// 	Ctx:    ctx,
-	// }
-	// allPermalik := repo.Service.GithubAll(r, gCfg)
-	// lg.Info("all permalik", allPermalik)
-
-	// gCfg = repo.Github{
-	// 	Name:   "systemysterio",
-	// 	Org:    true,
-	// 	Client: gc,
-	// 	Ctx:    ctx,
-	// }
-	// allSystemysterio := repo.Service.GithubAll(r, gCfg)
-	// lg.Info("all systemysterio", allSystemysterio)
-
-	// gCfg = repo.Github{
-	// 	Name:   "azizadevelopment",
-	// 	Org:    true,
-	// 	Client: gc,
-	// 	Ctx:    ctx,
-	// }
-	// allAziza := repo.Service.GithubAll(r, gCfg)
-	// lg.Info("all aziza", allAziza)
-
-	rCfg := repo.Redis{
-		Client: rc,
-		Ctx:    ctx,
+	cfg := repo.Config{
+		Name: "permalik",
+		Org:  false,
+		Ctx:  ctx,
+		Gc:   gc,
 	}
-	// allRedis := repo.Service.RedisAll(r, rCfg)
-	// lg.Info("all redis", allRedis)
-	name := "utility"
-	oneRedis := repo.Service.RedisByName(r, name, ctx, rCfg)
-	lg.Info("one redis", oneRedis)
+	allPermalik := repo.GithubAll(cfg)
+	cfg.Name = "systemysterio"
+	cfg.Org = true
+	allSystemysterio := repo.GithubAll(cfg)
+	cfg.Name = "azizadevelopment"
+	cfg.Org = true
+	allAziza := repo.GithubAll(cfg)
+	var allGithub []repo.Repo
+	if len(allPermalik) > 0 {
+		allGithub = append(allGithub, allPermalik...)
+	}
+	if len(allSystemysterio) > 0 {
+		allGithub = append(allGithub, allSystemysterio...)
+	}
+	if len(allAziza) > 0 {
+		allGithub = append(allGithub, allAziza...)
+	}
+	lg.Info("all github", allGithub)
 
-	// d := map[string]interface{}{"asdf": "asdfsadf"}
-	// r := repo.Repo{
-	// 	Title: "Test",
-	// 	Data:  d,
-	// }
-	// repo.Service.RedisSet(r, rc, ctx)
-
-	// val, err := r.Get(ctx, "key2").Result()
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println("key2", val)
-
-	// e := echo.New()
-	// e.GET("/", func(c echo.Context) error {
-	// 	return c.String(http.StatusOK, "Hello, World!")
-	// })
-	// e.Logger.Fatal(e.Start(":4321"))
+	cfg.Rc = rc
+	allRedis := repo.RedisAll(cfg)
+	lg.Info("all redis", allRedis)
+	for _, v := range allRedis {
+		err = repo.RedisRemoveOne(v, cfg)
+		if err != nil {
+			lg.Fail("RedisRemoveOne", "live", err)
+		}
+	}
+	for _, v := range allGithub {
+		err = repo.RedisAddOne(v, cfg)
+		if err != nil {
+			lg.Fail("RedisAddOne", "live", err)
+		}
+	}
+	if err != nil {
+		os.Exit(1)
+	}
 }

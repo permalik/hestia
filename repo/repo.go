@@ -2,31 +2,20 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/google/go-github/v59/github"
 	"github.com/permalik/github_integration/lg"
 	"github.com/redis/go-redis/v9"
-	"log"
 	"time"
 )
 
-type Service interface {
-	GithubAll(cfg Github) []Repo
-	RedisAll(cfg Redis) []Repo
-	RedisByName(name string, ctx context.Context, cfg Redis) Repo
-	RedisSet(cfg Redis)
-}
-
-type Github struct {
-	Name   string
-	Org    bool
-	Client *github.Client
-	Ctx    context.Context
-}
-
-type Redis struct {
-	Client *redis.Client
-	Ctx    context.Context
+type Config struct {
+	Name string
+	Org  bool
+	Ctx  context.Context
+	Gc   *github.Client
+	Rc   *redis.Client
 }
 
 type Data struct {
@@ -71,19 +60,17 @@ func parseGithub(r Repo, arr []Repo, raw []*github.Repository) []Repo {
 	return arr
 }
 
-func (r Repo) GithubAll(cfg Github) []Repo {
+func GithubAll(cfg Config) []Repo {
 
-	// check if there are results/errors explicitly
-	// returned from these ghapi calls
+	var r Repo
 	var arr []Repo
 	listOpt := github.ListOptions{Page: 1, PerPage: 25}
-	log.Println(cfg.Name)
 	if cfg.Org == true {
 
 		opt := &github.RepositoryListByOrgOptions{Type: "public", Sort: "created", ListOptions: listOpt}
-		data, _, err := cfg.Client.Repositories.ListByOrg(cfg.Ctx, cfg.Name, opt)
+		data, _, err := cfg.Gc.Repositories.ListByOrg(cfg.Ctx, cfg.Name, opt)
 		if err != nil {
-			lg.Fail("github: ListByOrg", err)
+			lg.Fail("github: ListByOrg", "live", err)
 		}
 
 		if len(data) <= 0 {
@@ -96,51 +83,57 @@ func (r Repo) GithubAll(cfg Github) []Repo {
 	} else {
 
 		opt := &github.RepositoryListByUserOptions{Type: "public", Sort: "created", ListOptions: listOpt}
-		raw, _, err := cfg.Client.Repositories.ListByUser(cfg.Ctx, cfg.Name, opt)
+		raw, _, err := cfg.Gc.Repositories.ListByUser(cfg.Ctx, cfg.Name, opt)
 		if err != nil {
-			lg.Fail("github: ListByUser", err)
+			lg.Fail("github: ListByUser", "live", err)
 		}
 
 		if len(raw) <= 0 {
 			lg.Info("github: no data returned from GithubAll", cfg.Name)
 			return arr
 		}
-
 		arr = parseGithub(r, arr, raw)
 		return arr
 	}
 }
 
-func (r Repo) RedisAll(cfg Redis) []Repo {
+func RedisAll(cfg Config) []string {
 
-	var arr []Repo
-	raw, err := cfg.Client.Keys(cfg.Ctx, "*").Result()
+	res, err := cfg.Rc.Keys(cfg.Ctx, "*").Result()
 	if errors.Is(err, redis.Nil) {
-		lg.Info("redisClient.Keys: key does not exist", err)
+		lg.Info("RedisAll: redis.Nil: keys not found", err)
 	} else if err != nil {
-		lg.Warn("redisClient.Keys: RedisAll", err)
+		lg.Warn("RedisAll: keys not found", err)
 	}
-	log.Println(raw)
-	return arr
+	return res
 }
 
-func (r Repo) RedisByName(name string, ctx context.Context, cfg Redis) Repo {
+func RedisAddOne(r Repo, cfg Config) error {
 
-	res, err := cfg.Client.Get(ctx, name).Result()
+	data, err := json.Marshal(r.Data)
+	if err != nil {
+		lg.Warn("RedisSet: json.Marshal", err)
+		return err
+	}
+
+	err = cfg.Rc.Set(cfg.Ctx, r.FullName, data, 0).Err()
+	if err != nil {
+		lg.Fail("RedisSet: Item not set", "live", err)
+		return err
+	}
+	return nil
+}
+
+func RedisRemoveOne(fullName string, cfg Config) error {
+
+	_, err := cfg.Rc.Del(cfg.Ctx, fullName).Result()
 	if errors.Is(err, redis.Nil) {
-		lg.Info("redisClient.Get: name does not exist", err)
+		lg.Warn("RedisRemoveOne: name does not exist", err)
+		return nil
 	}
 	if err != nil {
-		lg.Warn("redisClient.Get: RedisByName", "utility")
+		lg.Warn("RedisRemoveOne: Rc.Del", err)
+		return err
 	}
-	lg.Info("redisClient.Get: RedisByName", res)
-	return r
-}
-
-func (r Repo) RedisSet(cfg Redis) {
-
-	err := cfg.Client.Set(cfg.Ctx, r.FullName, r.Data, 0).Err()
-	if err != nil {
-		lg.Fail("redis: Item not set", err)
-	}
+	return nil
 }
