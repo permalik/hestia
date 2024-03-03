@@ -14,9 +14,7 @@ var ctx = context.Background()
 
 func main() {
 
-	// make it so it also updates the repos per field
-	// mvp should just be to make sure they get add/delete
-	// how to pass errors upstream
+	// TODO: make it also update the repos per field
 	lg.Launch("godotenv", nil)
 	err := godotenv.Load()
 	if err != nil {
@@ -45,9 +43,6 @@ func main() {
 	cfg.Name = "systemysterio"
 	cfg.Org = true
 	allSystemysterio := repo.GithubAll(cfg)
-	cfg.Name = "azizadevelopment"
-	cfg.Org = true
-	allAziza := repo.GithubAll(cfg)
 	var allGithub []repo.Repo
 	if len(allPermalik) > 0 {
 		allGithub = append(allGithub, allPermalik...)
@@ -55,14 +50,9 @@ func main() {
 	if len(allSystemysterio) > 0 {
 		allGithub = append(allGithub, allSystemysterio...)
 	}
-	if len(allAziza) > 0 {
-		allGithub = append(allGithub, allAziza...)
-	}
-	lg.Info("all github", allGithub)
 
 	cfg.Rc = rc
 	allRedis := repo.RedisAll(cfg)
-	lg.Info("all redis", allRedis)
 	for _, v := range allRedis {
 		err = repo.RedisRemoveOne(v, cfg)
 		if err != nil {
@@ -75,7 +65,5 @@ func main() {
 			lg.Fail("RedisAddOne", "live", err)
 		}
 	}
-	if err != nil {
-		os.Exit(1)
-	}
+	lg.Info("task complete", true, nil)
 }

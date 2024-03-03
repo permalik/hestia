@@ -19,7 +19,8 @@ type Config struct {
 }
 
 type Data struct {
-	Name        string
+	ID          int64
+	FullName    string
 	Description string
 	HTMLURL     string
 	Homepage    string
@@ -29,8 +30,8 @@ type Data struct {
 }
 
 type Repo struct {
-	FullName string
-	Data     Data
+	Name string
+	Data Data
 }
 
 func parseGithub(r Repo, arr []Repo, raw []*github.Repository) []Repo {
@@ -44,7 +45,8 @@ func parseGithub(r Repo, arr []Repo, raw []*github.Repository) []Repo {
 		updatedAt := *upPtr
 
 		d := Data{
-			Name:        v.GetName(),
+			ID:          v.GetID(),
+			FullName:    v.GetFullName(),
 			Description: v.GetDescription(),
 			HTMLURL:     v.GetHTMLURL(),
 			Homepage:    v.GetHomepage(),
@@ -52,7 +54,7 @@ func parseGithub(r Repo, arr []Repo, raw []*github.Repository) []Repo {
 			CreatedAt:   createdAt,
 			UpdatedAt:   updatedAt,
 		}
-		r.FullName = v.GetFullName()
+		r.Name = v.GetName()
 		r.Data = d
 
 		arr = append(arr, r)
@@ -74,7 +76,7 @@ func GithubAll(cfg Config) []Repo {
 		}
 
 		if len(data) <= 0 {
-			lg.Info("github: no data returned from GithubAll", cfg.Name)
+			lg.Info("github: no data returned from GithubAll", false, cfg.Name)
 			return arr
 		}
 
@@ -89,7 +91,7 @@ func GithubAll(cfg Config) []Repo {
 		}
 
 		if len(raw) <= 0 {
-			lg.Info("github: no data returned from GithubAll", cfg.Name)
+			lg.Info("github: no data returned from GithubAll", false, cfg.Name)
 			return arr
 		}
 		arr = parseGithub(r, arr, raw)
@@ -101,7 +103,7 @@ func RedisAll(cfg Config) []string {
 
 	res, err := cfg.Rc.Keys(cfg.Ctx, "*").Result()
 	if errors.Is(err, redis.Nil) {
-		lg.Info("RedisAll: redis.Nil: keys not found", err)
+		lg.Info("RedisAll: redis.Nil: keys not found", false, err)
 	} else if err != nil {
 		lg.Warn("RedisAll: keys not found", err)
 	}
@@ -116,7 +118,7 @@ func RedisAddOne(r Repo, cfg Config) error {
 		return err
 	}
 
-	err = cfg.Rc.Set(cfg.Ctx, r.FullName, data, 0).Err()
+	err = cfg.Rc.Set(cfg.Ctx, r.Name, data, 0).Err()
 	if err != nil {
 		lg.Fail("RedisSet: Item not set", "live", err)
 		return err
@@ -124,9 +126,9 @@ func RedisAddOne(r Repo, cfg Config) error {
 	return nil
 }
 
-func RedisRemoveOne(fullName string, cfg Config) error {
+func RedisRemoveOne(name string, cfg Config) error {
 
-	_, err := cfg.Rc.Del(cfg.Ctx, fullName).Result()
+	_, err := cfg.Rc.Del(cfg.Ctx, name).Result()
 	if errors.Is(err, redis.Nil) {
 		lg.Warn("RedisRemoveOne: name does not exist", err)
 		return nil
